@@ -13,7 +13,8 @@
     "sync:menu": "node src/utils/syncMenu2026.js",
     "check": "node scripts/check-syntax.js",
     "reset:fresh": "node src/utils/resetFreshDatabase.js",
-    "set:admin": "node src/utils/setAdminCredentials.js"
+    "set:admin": "node src/utils/setAdminCredentials.js",
+    "create:admin": "node src/utils/createAdmin.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
