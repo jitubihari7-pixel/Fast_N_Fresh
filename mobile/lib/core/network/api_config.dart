@@ -1,19 +1,19 @@
+
 /// Central place to configure the backend API URL.
 ///
 /// IMPORTANT:
 /// Never ship localhost, 127.0.0.1, or a local PC IP in a production APK.
 ///
 /// Production APK:
-///   flutter build apk --release \
-///     --dart-define=API_BASE_URL=https://YOUR-RENDER-URL.onrender.com/api
+///   flutter build apk --release --dart-define=API_BASE_URL=https://fast-n-fresh-cafe-api.onrender.com/api
 ///
 /// Current Fast N Fresh production backend:
-///   https://CHANGE-ME.onrender.com/api
+///   https://fast-n-fresh-cafe-api.onrender.com/api
 ///
 /// Android Emulator + local backend:
 ///   http://10.0.2.2:5000/api
 ///
-/// Physical phone + local backend on same Wi-Fi:
+/// Physical phone + local backend on the same Wi-Fi:
 ///   http://10.169.90.212:5000/api
 library;
 
@@ -22,16 +22,14 @@ class ApiConfig {
 
   /// Backend API URL.
   ///
-  /// The production APK should always be built with:
+  /// You can override this default at build time using:
   ///
-  /// --dart-define=API_BASE_URL=https://YOUR-RENDER-URL.onrender.com/api
+  /// --dart-define=API_BASE_URL=https://fast-n-fresh-cafe-api.onrender.com/api
   ///
-  /// The default points to the current Fast N Fresh Render Backend,
-  /// so the release build remains usable even when the build command
-  /// omits --dart-define.
+  /// The default is the production Render backend.
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://CHANGE-ME.onrender.com/api',
+    defaultValue: 'https://fast-n-fresh-cafe-api.onrender.com/api',
   );
 
   /// Connection timeout.
@@ -42,21 +40,23 @@ class ApiConfig {
 
   /// Server response timeout.
   ///
-  /// Long enough to handle a Render cold start.
+  /// Render Free services may need additional time during a cold start.
   static const Duration receiveTimeout = Duration(seconds: 45);
 
-  /// Returns the API root without the trailing `/api`.
+  /// Returns the API host without the trailing `/api`.
   ///
   /// Example:
-  /// https://example.onrender.com/api
+  /// https://example.com/api
   /// becomes:
-  /// https://example.onrender.com
+  /// https://example.com
   static String get assetHost {
-    if (baseUrl.endsWith('/api')) {
-      return baseUrl.substring(0, baseUrl.length - 4);
+    final url = baseUrl.trim().replaceFirst(RegExp(r'/+$'), '');
+
+    if (url.endsWith('/api')) {
+      return url.substring(0, url.length - 4);
     }
 
-    return baseUrl;
+    return url;
   }
 
   /// Converts a relative asset path into a complete URL.
@@ -65,17 +65,20 @@ class ApiConfig {
   /// /uploads/products/example.jpg
   ///
   /// becomes:
-  /// https://example.onrender.com/uploads/products/example.jpg
+  /// https://example.com/uploads/products/example.jpg
   static String resolveAssetUrl(String relativeOrAbsolute) {
-    if (relativeOrAbsolute.isEmpty) {
-      return relativeOrAbsolute;
+    final path = relativeOrAbsolute.trim();
+
+    if (path.isEmpty) {
+      return path;
     }
 
-    if (relativeOrAbsolute.startsWith('http://') ||
-        relativeOrAbsolute.startsWith('https://')) {
-      return relativeOrAbsolute;
+    if (path.startsWith('https://') || path.startsWith('http://')) {
+      return path;
     }
 
-    return '$assetHost$relativeOrAbsolute';
+    final normalizedPath = path.startsWith('/') ? path : '/$path';
+
+    return '$assetHost$normalizedPath';
   }
 }

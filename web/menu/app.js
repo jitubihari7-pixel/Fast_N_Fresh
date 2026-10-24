@@ -293,6 +293,19 @@
       window.clearTimeout(timeoutId);
     }
 
+    // Render's proxy answers 502/503/504 (HTML, not JSON) while the
+    // service is waking up. Treat that like a network error for GETs.
+    const method = String(options.method || 'GET').toUpperCase();
+    if (
+      method === 'GET' &&
+      [502, 503, 504].includes(response.status) &&
+      attempt < 3
+    ) {
+      const delays = [1200, 2500, 5000];
+      await new Promise((resolve) => window.setTimeout(resolve, delays[attempt]));
+      return apiRequest(path, options, attempt + 1);
+    }
+
     let body;
 
     try {
