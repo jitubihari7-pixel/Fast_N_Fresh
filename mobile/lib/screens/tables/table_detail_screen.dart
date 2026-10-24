@@ -214,51 +214,12 @@ class _TableDetailScreenState extends State<TableDetailScreen> with WidgetsBindi
     }
   }
 
-  /// Asks for an optional customer name for a new table order. Returns the
-  /// typed name, an empty string when skipped, or null when cancelled.
-  Future<String?> _askCustomerName(String autoLabel) {
-    final controller = TextEditingController();
-    return showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('New order'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: 60,
-          textCapitalization: TextCapitalization.words,
-          textInputAction: TextInputAction.done,
-          decoration: InputDecoration(
-            labelText: 'Customer name (optional)',
-            hintText: autoLabel,
-            counterText: '',
-          ),
-          onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, ''),
-            child: const Text('Skip'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
-            child: const Text('Start'),
-          ),
-        ],
-      ),
-    ).whenComplete(controller.dispose);
-  }
-
   Future<void> _addCustomer() async {
     if (_starting) return;
 
+    // No name prompt: new table orders start straight away as
+    // "Customer N". A name can still be added later in the cart.
     final autoLabel = 'Customer ${_openOrders.length + 1}';
-    final typedName = await _askCustomerName(autoLabel);
-    if (typedName == null || !mounted) return;
 
     setState(() => _starting = true);
 
@@ -268,7 +229,7 @@ class _TableDetailScreenState extends State<TableDetailScreen> with WidgetsBindi
       // owns the order and AddItemsSheet owns item selection.
       final order = await _service.startOrder(
         widget.tableId,
-        tableCustomerLabel: typedName.isEmpty ? autoLabel : typedName,
+        tableCustomerLabel: autoLabel,
       );
       if (!mounted) return;
 

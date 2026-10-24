@@ -35,7 +35,7 @@ class ReceiptService {
     final chars = isNarrow ? 30 : 42;
     const fontSize = 7.2;
     const smallSize = 6.4;
-    final format = _receiptFormat(widthMm, order.items.length);
+    final format = _receiptFormat(widthMm, _itemRowCount(order, widthMm));
 
     final totalTax = order.tax;
     final halfTax = totalTax / 2;
@@ -78,7 +78,9 @@ class ReceiptService {
           widgets.add(_line(_dash(chars), fontSize));
 
           for (final item in order.items) {
-            widgets.add(_receiptItemLine(item.name, item.quantity.toString(), _money(item.total), chars, fontSize));
+            for (final row in _itemRows(item.name, item.quantity.toString(), _money(item.total), chars)) {
+              widgets.add(_line(row, fontSize));
+            }
           }
 
           widgets.add(_line(_dash(chars), fontSize));
@@ -154,21 +156,28 @@ class ReceiptService {
     );
   }
 
-  pw.Widget _receiptItemLine(
-    String item,
-    String qty,
-    String amount,
-    int chars,
-    double size,
-  ) {
+  /// "ITEM  QTY  AMT" rows with the full item name: a long name wraps onto
+  /// following lines in the ITEM column instead of being cut with "...".
+  /// QTY and AMT are printed on the first line only.
+  List<String> _itemRows(String item, String qty, String amount, int chars) {
     const qtyWidth = 5;
     const amountWidth = 11;
     final itemWidth = chars - qtyWidth - amountWidth;
-    return _line(
-      _fit(item, itemWidth).padRight(itemWidth) +
+    final nameLines = _wrap(item, itemWidth);
+    if (nameLines.isEmpty) nameLines.add('');
+    return [
+      nameLines.first.padRight(itemWidth) +
           _fit(qty, qtyWidth).padLeft(qtyWidth) +
           _fit(amount, amountWidth).padLeft(amountWidth),
-      size,
+      ...nameLines.skip(1),
+    ];
+  }
+
+  int _itemRowCount(Order order, double widthMm) {
+    final chars = widthMm <= 60 ? 30 : 42;
+    return order.items.fold(
+      0,
+      (sum, item) => sum + _itemRows(item.name, '', '', chars).length,
     );
   }
 
@@ -240,14 +249,14 @@ class ReceiptService {
     return value.toStringAsFixed(2).replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
   }
 
-  /// The exact page size used for a receipt with [itemCount] line items on a
+  /// The exact page size used for a receipt with [itemRows] item lines on a
   /// [widthMm] roll. Shared by [buildReceiptPdf] (to build the PDF) and
   /// [printReceipt] (to tell the OS print dialog what size that PDF already
   /// is), so the two can never disagree.
-  PdfPageFormat _receiptFormat(double widthMm, int itemCount) {
+  PdfPageFormat _receiptFormat(double widthMm, int itemRows) {
     final pageWidth = widthMm * PdfPageFormat.mm;
     const fontSize = 7.2;
-    final lineCount = 24 + itemCount * 2;
+    final lineCount = 24 + itemRows * 2;
     final estimatedHeight = (lineCount * (fontSize + 2.5) + 70).clamp(180, 500).toDouble() * PdfPageFormat.mm;
     return PdfPageFormat(
       pageWidth,
@@ -276,7 +285,7 @@ class ReceiptService {
     // 55mm/80mm roll edge to edge.
     await Printing.layoutPdf(
       onLayout: (_) async => bytes,
-      format: _receiptFormat(widthMm, order.items.length),
+      format: _receiptFormat(widthMm, _itemRowCount(order, widthMm)),
       dynamicLayout: false,
     );
   }
@@ -404,10 +413,9 @@ class ReceiptService {
     bytes += generator.hr();
 
     for (final item in order.items) {
-      final line = _fit(item.name, itemWidth).padRight(itemWidth) +
-          _fit(item.quantity.toString(), qtyWidth).padLeft(qtyWidth) +
-          _fit(_money(item.total), amountWidth).padLeft(amountWidth);
-      bytes += generator.text(line);
+      for (final row in _itemRows(item.name, item.quantity.toString(), _money(item.total), chars)) {
+        bytes += generator.text(row);
+      }
     }
 
     bytes += generator.hr();

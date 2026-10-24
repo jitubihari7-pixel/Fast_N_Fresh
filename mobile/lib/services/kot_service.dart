@@ -73,14 +73,9 @@ class KotService {
               true,
             ),
             _line(chars, font),
-            ...order.items.map(
-              (item) => _text(
-                _fit(item.quantity.toString(), 5).padRight(5) +
-                    _fit(item.name, chars - 5),
-                font,
-                8,
-              ),
-            ),
+            for (final item in order.items)
+              ..._itemLines(item.quantity, item.name, chars)
+                  .map((line) => _text(line, font, 8)),
             if (order.notes?.trim().isNotEmpty == true) ...[
               _line(chars, font),
               _text('NOTE:', font, 8, true),
@@ -162,14 +157,9 @@ class KotService {
               true,
             ),
             _line(chars, font),
-            ...ticket.items.map(
-              (item) => _text(
-                _fit(item.quantity.toString(), 5).padRight(5) +
-                    _fit(item.name, chars - 5),
-                font,
-                8,
-              ),
-            ),
+            for (final item in ticket.items)
+              ..._itemLines(item.quantity, item.name, chars)
+                  .map((line) => _text(line, font, 8)),
             if (order.notes?.trim().isNotEmpty == true) ...[
               _line(chars, font),
               _text('NOTE:', font, 8, true),
@@ -205,7 +195,8 @@ class KotService {
                     ? 'Take Away'
                     : 'Dine In';
     List<int> bytes = [];
-    bytes += generator.text(_fit(settings.cafeName, chars), styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
+    final cafeName = _fit(settings.cafeName, chars);
+    bytes += generator.text(cafeName, styles: _cafeNameStyle(cafeName, isNarrow));
     bytes += generator.text('KITCHEN ORDER TICKET #${ticket.kotNumber}', styles: const PosStyles(align: PosAlign.center, bold: true));
     bytes += generator.hr();
     bytes += generator.text('Bill No: #${order.orderNumber}');
@@ -214,7 +205,9 @@ class KotService {
     bytes += generator.text('${Formatters.shortDate(ticket.createdAt)}, ${Formatters.time(ticket.createdAt)}');
     bytes += generator.hr();
     for (final item in ticket.items) {
-      bytes += generator.text(_fit(item.quantity.toString(), 5).padRight(5) + _fit(item.name, chars - 5));
+      for (final line in _itemLines(item.quantity, item.name, chars)) {
+        bytes += generator.text(line);
+      }
     }
     bytes += generator.hr();
     bytes += generator.feed(1);
@@ -268,10 +261,8 @@ class KotService {
                     : 'Dine In';
 
     List<int> bytes = [];
-    bytes += generator.text(
-      _fit(settings.cafeName, chars),
-      styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2),
-    );
+    final cafeName = _fit(settings.cafeName, chars);
+    bytes += generator.text(cafeName, styles: _cafeNameStyle(cafeName, isNarrow));
     bytes += generator.text('KITCHEN ORDER TICKET', styles: const PosStyles(align: PosAlign.center, bold: true));
     bytes += generator.hr();
     bytes += generator.text('Bill No: #${order.orderNumber}');
@@ -285,10 +276,9 @@ class KotService {
     bytes += generator.hr();
 
     for (final item in order.items) {
-      bytes += generator.text(
-        _fit(item.quantity.toString(), 5).padRight(5) +
-            _fit(item.name, chars - 5),
-      );
+      for (final line in _itemLines(item.quantity, item.name, chars)) {
+        bytes += generator.text(line);
+      }
     }
 
     if (order.notes?.trim().isNotEmpty == true) {
@@ -335,6 +325,32 @@ class KotService {
     if (cleaned.length <= width) return cleaned;
     if (width <= 1) return cleaned.substring(0, width);
     return '${cleaned.substring(0, width - 3)}...';
+  }
+
+  /// "QTY  ITEM" rows with the full item name: long names wrap onto
+  /// following lines (indented under ITEM) instead of being cut with "...".
+  List<String> _itemLines(int quantity, String name, int chars) {
+    const qtyWidth = 5;
+    final nameLines = _wrap(name, chars - qtyWidth);
+    if (nameLines.isEmpty) nameLines.add('');
+    return [
+      _fit(quantity.toString(), qtyWidth).padRight(qtyWidth) + nameLines.first,
+      for (final line in nameLines.skip(1)) ''.padRight(qtyWidth) + line,
+    ];
+  }
+
+  /// Double-width text uses two columns per character, so the cafe name
+  /// only prints double-wide when it fits on one line (58mm Font A = 32
+  /// columns, 80mm = 48); otherwise it stays tall but normal width instead
+  /// of spilling its last letter onto a second line.
+  PosStyles _cafeNameStyle(String name, bool isNarrow) {
+    final fitsDoubleWidth = name.length * 2 <= (isNarrow ? 32 : 48);
+    return PosStyles(
+      align: PosAlign.center,
+      bold: true,
+      height: PosTextSize.size2,
+      width: fitsDoubleWidth ? PosTextSize.size2 : PosTextSize.size1,
+    );
   }
 
   List<String> _wrap(String value, int width) {
