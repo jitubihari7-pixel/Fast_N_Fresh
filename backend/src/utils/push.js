@@ -24,47 +24,51 @@
 // order, logging in, etc. all keep working exactly as before either way.
 // ---------------------------------------------------------------------
 
-let cachedAdmin = null;
+let cachedMessaging = null;
 let attemptedInit = false;
 
-function getAdmin() {
-  if (attemptedInit) return cachedAdmin;
+// Returns the firebase-admin Messaging client (modular API, firebase-admin
+// v13+), or null when Firebase isn't configured.
+function getMessagingClient() {
+  if (attemptedInit) return cachedMessaging;
   attemptedInit = true;
 
   try {
     // eslint-disable-next-line global-require
-    const admin = require('firebase-admin');
+    const { initializeApp, getApps, cert, applicationDefault } = require('firebase-admin/app');
+    // eslint-disable-next-line global-require
+    const { getMessaging } = require('firebase-admin/messaging');
 
-    if (!admin.apps.length) {
+    if (!getApps().length) {
       const jsonEnv = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
       const pathEnv = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
       const adcEnv = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
       let credential;
       if (jsonEnv) {
-        credential = admin.credential.cert(JSON.parse(jsonEnv));
+        credential = cert(JSON.parse(jsonEnv));
       } else if (pathEnv) {
         // eslint-disable-next-line global-require, import/no-dynamic-require
-        credential = admin.credential.cert(require(pathEnv));
+        credential = cert(require(pathEnv));
       } else if (adcEnv) {
         // Standard Google Application Default Credentials path.
-        credential = admin.credential.applicationDefault();
+        credential = applicationDefault();
       } else {
         // Not configured yet -- stay a no-op rather than throwing, since
         // this must never block order creation or any other request.
         return null;
       }
 
-      admin.initializeApp({ credential });
+      initializeApp({ credential });
     }
 
-    cachedAdmin = admin;
+    cachedMessaging = getMessaging();
   } catch (err) {
     console.warn('[push] firebase-admin unavailable/misconfigured:', err.message);
-    cachedAdmin = null;
+    cachedMessaging = null;
   }
 
-  return cachedAdmin;
+  return cachedMessaging;
 }
 
 /**
@@ -77,8 +81,8 @@ async function sendPushToTokens(tokens, { title, body, data } = {}) {
   const cleanTokens = [...new Set((tokens || []).filter(Boolean))];
   if (cleanTokens.length === 0) return;
 
-  const admin = getAdmin();
-  if (!admin) return;
+  const messaging = getMessagingClient();
+  if (!messaging) return;
 
   try {
     const stringData = {};
@@ -86,7 +90,7 @@ async function sendPushToTokens(tokens, { title, body, data } = {}) {
       stringData[key] = String(value);
     }
 
-    const response = await admin.messaging().sendEachForMulticast({
+    const response = await messaging.sendEachForMulticast({
       tokens: cleanTokens,
       notification: { title, body },
       data: stringData,
