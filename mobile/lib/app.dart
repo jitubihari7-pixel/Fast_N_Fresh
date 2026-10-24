@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/connectivity_banner.dart';
+import 'core/widgets/latest_snackbar_messenger.dart';
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
 import 'screens/auth/login_screen.dart';
@@ -32,7 +33,9 @@ class PwpPosApp extends StatelessWidget {
       themeAnimationDuration: Duration.zero,
       themeAnimationCurve: Curves.linear,
       builder: (context, child) => _ThemeRefresh(
-        child: ConnectivityBanner(child: child ?? const SizedBox.shrink()),
+        child: LatestSnackBarMessenger(
+          child: ConnectivityBanner(child: child ?? const SizedBox.shrink()),
+        ),
       ),
       home: const _RootRouter(),
     );

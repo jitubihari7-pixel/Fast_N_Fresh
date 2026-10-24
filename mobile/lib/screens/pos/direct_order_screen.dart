@@ -10,6 +10,7 @@ import '../../providers/cart_provider.dart';
 import '../../providers/catalog_provider.dart';
 import 'cart_sheet.dart';
 import 'payment_sheet.dart';
+import 'running_orders_bar.dart';
 
 /// Dedicated fresh flow for counter Takeaway and Delivery orders.
 ///
@@ -30,6 +31,8 @@ class DirectOrderScreen extends StatefulWidget {
 
 class _DirectOrderScreenState extends State<DirectOrderScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final GlobalKey<RunningOrdersBarState> _runningOrdersKey =
+      GlobalKey<RunningOrdersBarState>();
   String? _categoryId;
 
   @override
@@ -79,8 +82,23 @@ class _DirectOrderScreenState extends State<DirectOrderScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => CartSheet(onContinueToPayment: _openPayment),
+      builder: (_) => CartSheet(
+        onContinueToPayment: _openPayment,
+        onSaveAndSendToKitchen: _saveAndServeNext,
+      ),
     );
+  }
+
+  /// "SAVE ORDER": keeps this customer's order open (unbilled) on the
+  /// server and starts an empty cart for the next customer. The saved
+  /// customer stays in "Running orders" until billed.
+  Future<void> _saveAndServeNext() async {
+    if (!mounted) return;
+    if (!await saveCartWithFeedback(context) || !mounted) return;
+    final cart = context.read<CartProvider>();
+    cart.clearItems();
+    cart.configureContext(orderType: widget.orderType);
+    await _runningOrdersKey.currentState?.refresh();
   }
 
   void _openPayment() {
@@ -97,8 +115,53 @@ class _DirectOrderScreenState extends State<DirectOrderScreen> {
     });
   }
 
+  /// Back with items in the cart: offer to keep the order running instead
+  /// of silently losing it.
+  Future<void> _onBackPressed() async {
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Leave this order?'),
+        content: const Text(
+          'Save it to Running orders to bill it later, or discard it.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, 'discard'),
+            child: const Text('Discard'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, 'save'),
+            child: const Text('Save for later'),
+          ),
+        ],
+      ),
+    );
+    if (choice == null || !mounted) return;
+    if (choice == 'save' && !await saveCartWithFeedback(context)) return;
+    if (!mounted) return;
+    context.read<CartProvider>().clear();
+    Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final cart = context.watch<CartProvider>();
+
+    return PopScope(
+      canPop: cart.isEmpty,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _onBackPressed();
+      },
+      child: _buildScaffold(context),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     final catalog = context.watch<CatalogProvider>();
     final cart = context.watch<CartProvider>();
     final products = _filteredProducts(catalog);
@@ -136,6 +199,10 @@ class _DirectOrderScreenState extends State<DirectOrderScreen> {
       ),
       body: Column(
         children: [
+          RunningOrdersBar(
+            key: _runningOrdersKey,
+            orderType: widget.orderType,
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: TextField(

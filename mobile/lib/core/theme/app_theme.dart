@@ -140,6 +140,8 @@ class AppTheme {
         contentTextStyle: GoogleFonts.inter(color: dark ? textPrimary : Colors.white, fontSize: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         behavior: SnackBarBehavior.floating,
+        // Swipe left/right to dismiss, like native Android snackbars.
+        dismissDirection: DismissDirection.horizontal,
       ),
     );
   }

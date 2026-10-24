@@ -2,5 +2,5 @@
 <resources>
     <!-- Matches AppColors.primary in lib/core/theme/app_colors.dart -->
     <color name="splash_background">#0F5540</color>
-	<color name="ic_launcher_background">#071426</color>
+	<color name="ic_launcher_background">#0A1432</color>
 </resources>

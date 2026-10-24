@@ -89,6 +89,12 @@
             <action android:name="android.media.action.IMAGE_CAPTURE" />
         </intent>
 
+        <!-- Opening web links in the browser (About us portfolio link) -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+
     </queries>
 
 

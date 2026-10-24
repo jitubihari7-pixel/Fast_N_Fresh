@@ -12,20 +12,17 @@ import '../../core/utils/formatters.dart';
 import '../../core/utils/pos_debug_log.dart';
 import '../../core/utils/product_sizes.dart';
 import '../../models/cart_item.dart';
-import '../../models/customer.dart';
 import '../../models/order.dart';
 import '../../models/product.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/catalog_provider.dart';
-import '../../providers/tab_refresh_bus.dart';
 import 'cart_sheet.dart';
 import 'payment_sheet.dart';
+import 'running_orders_bar.dart';
 import '../tables/tables_screen.dart';
 import '../tables/qr_management_screen.dart';
 import '../../models/table.dart';
 import '../../services/table_service.dart';
-import '../../services/order_service.dart';
-import '../../core/network/api_exception.dart';
 
 class PosScreen extends StatefulWidget {
   final String? orderType;
@@ -435,278 +432,21 @@ class _PosScreenState extends State<PosScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// Saves the cart as an open (unbilled) order on the server, or updates
-  /// the open order it already belongs to. Returns true on success.
-  Future<bool> _saveOrder() async {
-    if (!mounted) return false;
-    final cart = context.read<CartProvider>();
-    if (cart.isEmpty) return false;
-
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      Order order;
-      final service = OrderService();
-
-      if (cart.openOrderId == null) {
-        order = await service.startOpenOrder(
-          orderType: cart.orderType,
-          tableId: cart.tableId,
-          tableCustomerLabel: cart.effectiveCustomerLabel,
-          customerId: cart.selectedCustomer?.id,
-          notes: cart.notes,
-          deliveryInfo: cart.orderType == 'delivery'
-              ? {
-                  'address': cart.deliveryAddress.trim(),
-                  'phone': cart.deliveryPhone.trim(),
-                }
-              : null,
-        );
-
-        if (!mounted) return false;
-        await service.updateOpenOrderItems(
-          order.id,
-          items: cart.items,
-          discount: cart.discount,
-          notes: cart.notes,
-          customerId: cart.selectedCustomer?.id,
-        );
-
-        cart.configureContext(
-          orderType: cart.orderType,
-          tableId: cart.tableId,
-          tableName: cart.tableName,
-          tableCustomerLabel: cart.effectiveCustomerLabel,
-          openOrderId: order.id,
-        );
-      } else {
-        await service.updateOpenOrderItems(
-          cart.openOrderId!,
-          items: cart.items,
-          discount: cart.discount,
-          notes: cart.notes,
-          customerId: cart.selectedCustomer?.id,
-          tableCustomerLabel: cart.customerNameInput,
-        );
-        order = await service.getById(cart.openOrderId!);
-      }
-
-      if (!mounted) return true;
-      messenger.showSnackBar(
-        SnackBar(content: Text('Order #${order.orderNumber} saved')),
-      );
-      context.read<TabRefreshBus>().bumpDashboard();
-      unawaited(_loadRunningOrders());
-      return true;
-    } on ApiException catch (e) {
-      if (mounted) messenger.showSnackBar(SnackBar(content: Text(e.message)));
-    } catch (_) {
-      if (mounted) messenger.showSnackBar(const SnackBar(content: Text('Could not save the order. Please try again.')));
-    }
-    return false;
-  }
-
-  // ------------------------------------------------------------
-  // RUNNING TAKEAWAY / DELIVERY ORDERS
-  // ------------------------------------------------------------
-  //
-  // Like dine-in tables, several takeaway/delivery customers can be served
-  // at once: each one is an open (unbilled) order on the server. Staff park
-  // the current customer with "New customer" and switch back by tapping
-  // that customer's chip.
-
-  List<Order> _runningOrders = const [];
-  bool _switchingOrder = false;
+  final GlobalKey<RunningOrdersBarState> _runningOrdersKey =
+      GlobalKey<RunningOrdersBarState>();
 
   bool get _showsRunningOrders =>
       !_isFixedOrder && (_orderMode == 'takeaway' || _orderMode == 'delivery');
 
-  Future<void> _loadRunningOrders() async {
-    if (!_showsRunningOrders) {
-      if (_runningOrders.isNotEmpty && mounted) {
-        setState(() => _runningOrders = const []);
-      }
-      return;
-    }
-    final mode = _orderMode;
-    try {
-      final orders = await OrderService().list(
-        orderType: mode,
-        status: 'active',
-        limit: 50,
-      );
-      if (!mounted || mode != _orderMode) return;
-      setState(() {
-        _runningOrders = orders
-            .where((o) => o.paymentStatus != 'paid')
-            .toList()
-          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-      });
-    } catch (e) {
-      posLog('Could not load running $mode orders: $e');
-    }
-  }
+  Future<void> _loadRunningOrders() async =>
+      _runningOrdersKey.currentState?.refresh();
 
-  /// Parks the current customer (saves the cart as an open order) so the
-  /// cart can be reused. Returns false if saving failed, so callers never
-  /// throw away an unsaved cart.
-  Future<bool> _parkCurrentCart() async {
-    final cart = context.read<CartProvider>();
-    if (cart.isEmpty) return true;
-    return _saveOrder();
-  }
-
-  Future<void> _startNewCustomer() async {
-    if (_switchingOrder) return;
-    setState(() => _switchingOrder = true);
-    try {
-      if (!await _parkCurrentCart() || !mounted) return;
-      final cart = context.read<CartProvider>();
-      cart.clearItems();
-      cart.configureContext(orderType: _orderMode);
-    } finally {
-      if (mounted) setState(() => _switchingOrder = false);
-    }
-  }
-
-  Future<void> _resumeRunningOrder(Order order) async {
-    final cart = context.read<CartProvider>();
-    if (_switchingOrder || cart.openOrderId == order.id) return;
-    setState(() => _switchingOrder = true);
-    try {
-      if (!await _parkCurrentCart() || !mounted) return;
-
-      // Re-read so the chip reflects the latest items from any device.
-      final latest = await OrderService().getById(order.id);
-      if (!mounted) return;
-
-      cart.configureContext(
-        orderType: latest.orderType,
-        tableCustomerLabel: latest.tableCustomerLabel,
-        openOrderId: latest.id,
-      );
-      cart.hydrateFromOpenOrder(
-        items: latest.items
-            .map(
-              (oi) => CartItem(
-                product: Product(
-                  id: oi.productId,
-                  name: oi.name,
-                  categoryId: '',
-                  sellingPrice: oi.price,
-                  imageUrl: oi.imageUrl,
-                ),
-                quantity: oi.quantity,
-              ),
-            )
-            .toList(),
-        discount: latest.discount,
-        customer: latest.customerId == null
-            ? null
-            : Customer(
-                id: latest.customerId!,
-                name: latest.customerName ?? '',
-                phone: latest.customerPhone ?? '',
-              ),
-      );
-      if (latest.orderType == 'delivery') {
-        cart.deliveryAddress = latest.deliveryInfo?.address ?? '';
-        cart.deliveryPhone = latest.deliveryInfo?.phone ?? '';
-      }
-      cart.notes = latest.notes ?? '';
-    } on ApiException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.message)));
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open that order. Please try again.')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _switchingOrder = false);
-      unawaited(_loadRunningOrders());
-    }
-  }
-
-  String _runningOrderLabel(Order order) {
-    final name = (order.tableCustomerLabel?.trim().isNotEmpty ?? false)
-        ? order.tableCustomerLabel!.trim()
-        : (order.customerName?.trim().isNotEmpty ?? false)
-            ? order.customerName!.trim()
-            : null;
-    return [
-      '#${order.orderNumber}',
-      if (name != null) name,
-      Formatters.currency(order.grandTotal),
-    ].join(' · ');
-  }
-
-  Widget _buildRunningOrders() {
-    final cart = context.watch<CartProvider>();
-    final isNewOrder = cart.openOrderId == null;
-
-    Widget chip({
-      required String label,
-      required bool selected,
-      required VoidCallback? onTap,
-      IconData? icon,
-    }) {
-      return Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: ChoiceChip(
-          avatar: icon == null ? null : Icon(icon, size: 18),
-          label: Text(label),
-          selected: selected,
-          showCheckmark: false,
-          onSelected: onTap == null ? null : (_) => onTap(),
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _runningOrders.isEmpty
-                ? 'Running orders'
-                : 'Running orders (${_runningOrders.length})',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 6),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                chip(
-                  label: isNewOrder && !cart.isEmpty
-                      ? 'New customer (current)'
-                      : 'New customer',
-                  icon: Icons.person_add_alt_1_outlined,
-                  selected: isNewOrder,
-                  onTap: _switchingOrder ? null : _startNewCustomer,
-                ),
-                for (final order in _runningOrders)
-                  chip(
-                    label: _runningOrderLabel(order),
-                    selected: cart.openOrderId == order.id,
-                    onTap: _switchingOrder
-                        ? null
-                        : () => _resumeRunningOrder(order),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+  /// Saves the cart as an open (unbilled) order. Returns true on success.
+  Future<bool> _saveOrder() async {
+    if (!mounted) return false;
+    final saved = await saveCartWithFeedback(context);
+    if (saved) unawaited(_loadRunningOrders());
+    return saved;
   }
 
   Future<void> _openPayment() async {
@@ -946,7 +686,8 @@ class _PosScreenState extends State<PosScreen> with WidgetsBindingObserver {
           padding: const EdgeInsets.only(bottom: 24),
           children: [
             if (!_isFixedOrder) _buildOrderModeBar(),
-            if (_showsRunningOrders) _buildRunningOrders(),
+            if (_showsRunningOrders)
+              RunningOrdersBar(key: _runningOrdersKey, orderType: _orderMode),
             if (widget.tableId != null) ...[
               const OrderFlowStepper(currentStep: 1),
               _buildTableBanner(),

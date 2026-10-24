@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 
 import 'package:provider/provider.dart';
 
+import 'package:url_launcher/url_launcher.dart';
+
 import '../../core/theme/app_colors.dart';
 
 import '../../core/network/api_exception.dart';
@@ -486,6 +488,12 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
 
                     ],
 
+                    const SizedBox(height: 28),
+
+                    _sectionTitle('About us'),
+
+                    const _AboutUsCard(),
+
                   ],
 
                 ),
@@ -551,6 +559,97 @@ class _ShareApkTile extends StatelessWidget {
         trailing: const Icon(Icons.chevron_right),
 
         onTap: onShareApk,
+
+      ),
+
+    );
+
+  }
+
+}
+
+/// Credits shown at the bottom of Settings.
+class _AboutUsCard extends StatelessWidget {
+
+  const _AboutUsCard();
+
+  static final Uri _portfolio = Uri.parse('https://pwp-portfolio-mu.vercel.app/');
+
+  Future<void> _openPortfolio(BuildContext context) async {
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    var opened = false;
+
+    try {
+
+      opened = await launchUrl(_portfolio, mode: LaunchMode.externalApplication);
+
+    } catch (_) {}
+
+    if (!opened) {
+
+      messenger.showSnackBar(const SnackBar(content: Text('Could not open the link.')));
+
+    }
+
+  }
+
+  @override
+
+  Widget build(BuildContext context) {
+
+    return Container(
+
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+
+      child: Column(
+
+        children: [
+
+          ListTile(
+
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+
+            leading: Icon(Icons.code_rounded, color: AppColors.primary),
+
+            title: const Text('Developed by Love'),
+
+          ),
+
+          const Divider(height: 1),
+
+          ListTile(
+
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+
+            leading: Icon(Icons.bolt_rounded, color: AppColors.primary),
+
+            title: const Text('Powered by PWP'),
+
+            subtitle: const Text('Personalize Web Page'),
+
+          ),
+
+          const Divider(height: 1),
+
+          ListTile(
+
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+
+            leading: Icon(Icons.language_rounded, color: AppColors.primary),
+
+            title: const Text('Visit our portfolio'),
+
+            subtitle: const Text('pwp-portfolio-mu.vercel.app'),
+
+            trailing: const Icon(Icons.open_in_new_rounded, size: 20),
+
+            onTap: () => _openPortfolio(context),
+
+          ),
+
+        ],
 
       ),
 

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/app_colors.dart';
@@ -111,10 +112,47 @@ class _MainShellState extends State<MainShell> {
     ];
   }
 
+  DateTime? _lastBackPress;
+
+  /// Android back on the shell itself (pushed pages above it pop normally):
+  /// another tab -> first tab; first tab -> "press back again to exit", so
+  /// a single back press never closes the whole app by accident.
+  void _onBackPressed() {
+    if (_index != 0) {
+      _select(0);
+      return;
+    }
+    final now = DateTime.now();
+    if (_lastBackPress != null &&
+        now.difference(_lastBackPress!) < const Duration(seconds: 2)) {
+      SystemNavigator.pop();
+      return;
+    }
+    _lastBackPress = now;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Press back again to exit'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isWide = MediaQuery.sizeOf(context).width >= 720;
 
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _onBackPressed();
+      },
+      child: _buildScaffold(context, isWide),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context, bool isWide) {
     return Scaffold(
       body: Row(
         children: [
