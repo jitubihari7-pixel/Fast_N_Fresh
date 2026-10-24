@@ -190,3 +190,28 @@ For Render/Railway deployment, copy those values into the service's Environment 
 than committing the `.env` file. Firebase Cloud Messaging additionally requires a Firebase Admin
 service-account credential (`FIREBASE_SERVICE_ACCOUNT_JSON` or `FIREBASE_SERVICE_ACCOUNT_PATH`)
 on the backend; the Android `google-services.json` is not a substitute for that server credential.
+
+## 8. Uptime monitoring (UptimeRobot)
+
+Render's free plan puts the service to sleep after ~15 minutes without
+traffic, so the first QR-menu/app request afterwards waits for a cold start.
+An external uptime monitor keeps it awake and emails you when it goes down.
+
+Health endpoint: `GET /health` (also answers `HEAD`)
+
+- `200 {"success":true,"status":"ok","database":"connected"}` — API and MongoDB are up
+- `503 {"success":false,"status":"starting","database":"disconnected"}` — process is up but MongoDB is not
+
+It is excluded from rate limiting and from the request log.
+
+Setup on https://uptimerobot.com (free account):
+
+1. **Add New Monitor** → Monitor type **HTTP(s)**
+2. Friendly name: `Fast N Fresh API`
+3. URL: `https://<your-render-service>.onrender.com/health`
+4. Monitoring interval: **5 minutes**
+5. Alert contacts: the email/phone that should be told about downtime
+6. Save. The monitor should turn green within a few minutes.
+
+Optional: add a **Keyword** monitor on the same URL with keyword `"connected"`,
+so you are also alerted when the server is up but the database is not.

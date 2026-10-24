@@ -110,7 +110,9 @@ if (process.env.NODE_ENV !== 'test') {
     morgan(
       process.env.NODE_ENV === 'production'
         ? 'combined'
-        : 'dev'
+        : 'dev',
+      // Uptime monitor pings (UptimeRobot every 5 min) would flood the logs.
+      { skip: (req, res) => req.path === '/health' && res.statusCode < 400 }
     )
   );
 }
