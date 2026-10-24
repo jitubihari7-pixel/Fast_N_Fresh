@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- PWP POS — Personalize Web Page splash screen: brand-green background with the app icon centered. -->
+<!-- <bitmap> needs a PNG. @mipmap/ic_launcher is an adaptive-icon XML on
+     Android 8+, which crashes the app at launch, so use the PNG foreground. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splash_background" />
+    <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@drawable/ic_launcher_foreground" />
+    </item>
+</layer-list>

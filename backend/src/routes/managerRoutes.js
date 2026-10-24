@@ -1,0 +1,8 @@
+const express=require('express');
+const {protect,authorize}=require('../middleware/auth');
+const c=require('../controllers/managerController');
+const router=express.Router();
+router.use(protect,authorize('admin','manager'));
+router.get('/day',c.getDaySummary); router.post('/day/open',c.openDay); router.post('/day/close',c.closeDay); router.post('/cash-movement',c.cashMovement); router.get('/overview',c.getManagementOverview);
+router.patch('/delivery/:id/status',c.setDeliveryStatus);
+module.exports=router;
