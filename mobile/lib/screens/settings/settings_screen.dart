@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
-import 'package:package_info_plus/package_info_plus.dart';
 
 import 'package:provider/provider.dart';
 
@@ -478,15 +477,14 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
 
                     ),
 
-                    const SizedBox(height: 28),
+                    // Sharing the APK only makes sense on Android.
+                    if (Platform.isAndroid) ...[
 
-                    _sectionTitle('App'),
+                      const SizedBox(height: 12),
 
-                    _AppInfoTile(
+                      _ShareApkTile(onShareApk: _shareApk),
 
-                      onShareApk: _shareApk,
-
-                    ),
+                    ],
 
                   ],
 
@@ -522,11 +520,11 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
 
 }
 
-class _AppInfoTile extends StatelessWidget {
+class _ShareApkTile extends StatelessWidget {
 
   final VoidCallback onShareApk;
 
-  const _AppInfoTile({
+  const _ShareApkTile({
 
     required this.onShareApk,
 
@@ -536,56 +534,25 @@ class _AppInfoTile extends StatelessWidget {
 
   Widget build(BuildContext context) {
 
-    return FutureBuilder<PackageInfo>(
+    return Container(
 
-      future: PackageInfo.fromPlatform(),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
 
-      builder: (context, snapshot) {
+      child: ListTile(
 
-        final version = snapshot.data != null ? '${snapshot.data!.version} (${snapshot.data!.buildNumber})' : '—';
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
 
-        return Container(
+        leading: Icon(Icons.share_rounded, color: AppColors.primary),
 
-          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
+        title: const Text('Share APK'),
 
-          child: Column(
+        subtitle: const Text('Send this installed app to another phone'),
 
-            children: [
+        trailing: const Icon(Icons.chevron_right),
 
-              const ListTile(leading: Icon(Icons.local_cafe_outlined), title: Text('PWP POS • PERSONALIZE WEB PAGE'), subtitle: Text('Cafe Management & POS')),
+        onTap: onShareApk,
 
-              const Divider(height: 1),
-
-              ListTile(leading: const Icon(Icons.info_outline), title: const Text('Version'), subtitle: Text(version)),
-
-              // Sharing the APK only makes sense on Android.
-              if (Platform.isAndroid) ...[
-
-              const Divider(height: 1),
-
-              ListTile(
-
-                leading: Icon(Icons.share_rounded, color: AppColors.primary),
-
-                title: const Text('Share APK'),
-
-                subtitle: const Text('Send this installed app to another phone'),
-
-                trailing: const Icon(Icons.chevron_right),
-
-                onTap: onShareApk,
-
-              ),
-
-              ],
-
-            ],
-
-          ),
-
-        );
-
-      },
+      ),
 
     );
 

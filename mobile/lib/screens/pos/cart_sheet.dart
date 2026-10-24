@@ -482,7 +482,10 @@ class _CartSheetState extends State<CartSheet> {
 
             const SizedBox(height: 14),
 
-            if (cart.openOrderId == null && widget.onSaveAndSendToKitchen != null) ...[
+            // Resumed takeaway/delivery orders can be re-saved after edits;
+            // dine-in tabs keep their own save flow on the table screen.
+            if ((cart.openOrderId == null || cart.orderType != 'dine_in') &&
+                widget.onSaveAndSendToKitchen != null) ...[
               OutlinedButton.icon(
                 onPressed: () {
                   if (cart.orderType == 'delivery') {

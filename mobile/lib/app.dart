@@ -31,11 +31,62 @@ class PwpPosApp extends StatelessWidget {
       // used by older widgets always switch together.
       themeAnimationDuration: Duration.zero,
       themeAnimationCurve: Curves.linear,
-      builder: (context, child) =>
-          ConnectivityBanner(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => _ThemeRefresh(
+        child: ConnectivityBanner(child: child ?? const SizedBox.shrink()),
+      ),
       home: const _RootRouter(),
     );
   }
+}
+
+/// Many screens read the static [AppColors] palette instead of
+/// Theme.of(context), so Flutter doesn't know they depend on the theme:
+/// const widgets and screens kept alive off-screen (other tabs, routes
+/// below the current one) kept the old colors until something else rebuilt
+/// them. On every Light/Dark change, mark the whole subtree dirty so the
+/// next frame repaints everything in the new palette at once. State (cart,
+/// navigation stack, text fields) is preserved.
+class _ThemeRefresh extends StatefulWidget {
+  final Widget child;
+
+  const _ThemeRefresh({required this.child});
+
+  @override
+  State<_ThemeRefresh> createState() => _ThemeRefreshState();
+}
+
+class _ThemeRefreshState extends State<_ThemeRefresh> {
+  late final ThemeProvider _theme;
+  late AppThemeMode _mode;
+
+  @override
+  void initState() {
+    super.initState();
+    _theme = context.read<ThemeProvider>();
+    _mode = _theme.mode;
+    _theme.addListener(_onThemeChanged);
+  }
+
+  void _onThemeChanged() {
+    if (_theme.mode == _mode || !mounted) return;
+    _mode = _theme.mode;
+
+    void markDirty(Element element) {
+      element.markNeedsBuild();
+      element.visitChildren(markDirty);
+    }
+
+    (context as Element).visitChildren(markDirty);
+  }
+
+  @override
+  void dispose() {
+    _theme.removeListener(_onThemeChanged);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 class _RootRouter extends StatefulWidget {
