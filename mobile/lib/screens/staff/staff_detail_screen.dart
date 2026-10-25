@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/widgets/password_form_field.dart';
 import '../../core/widgets/state_widgets.dart';
 import '../../models/dashboard_models.dart';
 import '../../providers/connectivity_provider.dart';
@@ -112,7 +113,7 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> with WidgetsBindi
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Reset Password'),
-        content: TextField(controller: controller, obscureText: true, decoration: const InputDecoration(labelText: 'New Password')),
+        content: PasswordFormField(controller: controller, labelText: 'New Password'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Reset')),

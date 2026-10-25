@@ -3,6 +3,7 @@ import '../../core/network/api_exception.dart';
 import '../../services/auth_service.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/password_form_field.dart';
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
 
@@ -47,17 +48,15 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextFormField(
+              PasswordFormField(
                 controller: _currentController,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Current Password'),
+                labelText: 'Current Password',
                 validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
               ),
               const SizedBox(height: 14),
-              TextFormField(
+              PasswordFormField(
                 controller: _newController,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'New Password'),
+                labelText: 'New Password',
                 validator: (v) => (v == null || v.length < 6) ? 'Minimum 6 characters' : null,
               ),
               if (_error != null) ...[

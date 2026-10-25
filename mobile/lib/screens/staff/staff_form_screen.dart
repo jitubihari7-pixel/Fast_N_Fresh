@@ -3,6 +3,7 @@ import '../../core/network/api_exception.dart';
 import '../../services/misc_services.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/password_form_field.dart';
 class StaffFormScreen extends StatefulWidget {
   const StaffFormScreen({super.key});
 
@@ -68,10 +69,9 @@ class _StaffFormScreenState extends State<StaffFormScreen> {
               validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
             ),
             const SizedBox(height: 14),
-            TextFormField(
+            PasswordFormField(
               controller: _passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Password'),
+              labelText: 'Password',
               validator: (v) => (v == null || v.length < 6) ? 'Minimum 6 characters' : null,
             ),
             if (_error != null) ...[

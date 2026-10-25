@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/widgets/password_form_field.dart';
 import '../../core/widgets/state_widgets.dart';
 import '../../models/user.dart';
 import '../../providers/connectivity_provider.dart';
@@ -353,7 +354,7 @@ class _EditAccountSheetState extends State<_EditAccountSheet> {
                 const SizedBox(height: 12),
                 TextFormField(controller: _usernameController, decoration: const InputDecoration(labelText: 'Login ID / Username'), validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null),
                 const SizedBox(height: 12),
-                TextFormField(controller: _passwordController, obscureText: true, decoration: const InputDecoration(labelText: 'New Password', hintText: 'Leave blank to keep current password'), validator: (v) => (v != null && v.isNotEmpty && v.length < 6) ? 'Minimum 6 characters' : null),
+                PasswordFormField(controller: _passwordController, labelText: 'New Password', hintText: 'Leave blank to keep current password', validator: (v) => (v != null && v.isNotEmpty && v.length < 6) ? 'Minimum 6 characters' : null),
                 if (_error != null) ...[
                   const SizedBox(height: 10),
                   Text(_error!, style: TextStyle(color: AppColors.danger, fontSize: 13)),
@@ -434,7 +435,7 @@ class _AddUserSheetState extends State<_AddUserSheet> {
               const SizedBox(height: 12),
               TextFormField(controller: _usernameController, decoration: const InputDecoration(labelText: 'Username'), validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null),
               const SizedBox(height: 12),
-              TextFormField(controller: _passwordController, obscureText: true, decoration: const InputDecoration(labelText: 'Password'), validator: (v) => (v == null || v.length < 6) ? 'Minimum 6 characters' : null),
+              PasswordFormField(controller: _passwordController, labelText: 'Password', validator: (v) => (v == null || v.length < 6) ? 'Minimum 6 characters' : null),
               const SizedBox(height: 12),
               Row(children: [
                 Expanded(child: ChoiceChip(label: const Text('Staff'), selected: _role == 'staff', onSelected: (_) => setState(() => _role = 'staff'))),
