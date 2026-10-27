@@ -15,7 +15,7 @@ Future<void> openBill(BuildContext context, Order order) {
 
   final Widget page;
   if (pending && !order.isQrOrder && (order.orderType == 'takeaway' || order.orderType == 'delivery')) {
-    page = DirectOrderScreen(orderType: order.orderType, resumeOrderId: order.id);
+    page = DirectOrderScreen(orderType: order.orderType, resumeOrderId: order.id, autoOpenCart: true);
   } else if (pending && !order.isQrOrder && order.orderType == 'dine_in' && order.tableId != null) {
     page = TableDetailScreen(tableId: order.tableId!);
   } else {

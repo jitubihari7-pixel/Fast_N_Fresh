@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/network/api_exception.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/product_sizes.dart';
@@ -12,7 +13,9 @@ import 'cart_sheet.dart';
 import 'payment_sheet.dart';
 import 'running_orders_bar.dart';
 
-/// Dedicated fresh flow for counter Takeaway and Delivery orders.
+/// Menu + cart for one Takeaway or Delivery counter (T1, D2...), opened
+/// from the counters screen like a dine-in table. A free counter starts a
+/// new order; a busy one ([resumeOrderId]) carries on with its order.
 ///
 /// QR ordering is not used here and its existing implementation is untouched.
 /// This screen deliberately avoids the old POS mode-switch/layout tree so a
@@ -20,12 +23,23 @@ import 'running_orders_bar.dart';
 class DirectOrderScreen extends StatefulWidget {
   final String orderType;
 
-  /// Open (unbilled) order to load and bill straight away, e.g. a pending
-  /// bill tapped in Bill History.
+  /// Counter tag for a new order, e.g. "T1" or "D2".
+  final String? slot;
+
+  /// Open (unbilled) order to load and carry on with.
   final String? resumeOrderId;
 
-  const DirectOrderScreen({super.key, required this.orderType, this.resumeOrderId})
-      : assert(orderType == 'takeaway' || orderType == 'delivery');
+  /// Opens the cart for billing as soon as the order is loaded, e.g. for a
+  /// pending bill tapped in Bill History.
+  final bool autoOpenCart;
+
+  const DirectOrderScreen({
+    super.key,
+    required this.orderType,
+    this.slot,
+    this.resumeOrderId,
+    this.autoOpenCart = false,
+  }) : assert(orderType == 'takeaway' || orderType == 'delivery');
 
   bool get isDelivery => orderType == 'delivery';
 
@@ -35,26 +49,28 @@ class DirectOrderScreen extends StatefulWidget {
 
 class _DirectOrderScreenState extends State<DirectOrderScreen> {
   final TextEditingController _searchController = TextEditingController();
-  final GlobalKey<RunningOrdersBarState> _runningOrdersKey =
-      GlobalKey<RunningOrdersBarState>();
   String? _categoryId;
+  bool _loadingOrder = false;
+
+  /// The cart as last saved/loaded, to tell whether leaving loses changes.
+  String _savedSnapshot = '';
 
   @override
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
+    _loadingOrder = widget.resumeOrderId != null;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       // Explicit fresh-start reset for every direct order.
       final cart = context.read<CartProvider>();
       cart.clear();
-      cart.configureContext(orderType: widget.orderType);
+      cart.configureContext(orderType: widget.orderType, tableCustomerLabel: widget.slot);
       context.read<CatalogProvider>().ensureLoaded();
+      _savedSnapshot = _snapshot(cart);
 
       final resumeId = widget.resumeOrderId;
-      if (resumeId == null) return;
-      final loaded = await _runningOrdersKey.currentState?.resumeById(resumeId) ?? false;
-      if (loaded && mounted) await _openCart();
+      if (resumeId != null) await _resume(resumeId);
     });
   }
 
@@ -66,6 +82,45 @@ class _DirectOrderScreenState extends State<DirectOrderScreen> {
   }
 
   void _onSearchChanged() => mounted ? setState(() {}) : null;
+
+  Future<void> _resume(String orderId) async {
+    final cart = context.read<CartProvider>();
+    String? error;
+    try {
+      await loadOpenOrderIntoCart(cart, orderId);
+    } on ApiException catch (e) {
+      error = e.message;
+    } catch (_) {
+      error = 'Could not open that order. Please try again.';
+    }
+    if (!mounted) return;
+    setState(() => _loadingOrder = false);
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      cart.clear();
+      Navigator.of(context).pop();
+      return;
+    }
+    _savedSnapshot = _snapshot(cart);
+    if (widget.autoOpenCart) await _openCart();
+  }
+
+  String _snapshot(CartProvider cart) {
+    final items = cart.items.map((i) => '${i.product.id}x${i.quantity}').toList()..sort();
+    return [
+      items.join(','),
+      cart.discount,
+      cart.notes,
+      cart.customerNameInput.trim(),
+      cart.selectedCustomer?.id,
+      cart.deliveryAddress,
+      cart.deliveryPhone,
+    ].join('|');
+  }
+
+  /// Leaving would lose items or edits that are not saved on the server.
+  bool _hasUnsavedChanges(CartProvider cart) =>
+      !_loadingOrder && !(cart.isEmpty && cart.openOrderId == null) && _snapshot(cart) != _savedSnapshot;
 
   List<Product> _filteredProducts(CatalogProvider catalog) {
     var result = catalog.productsForCategory(_categoryId);
@@ -93,21 +148,18 @@ class _DirectOrderScreenState extends State<DirectOrderScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => CartSheet(
         onContinueToPayment: _openPayment,
-        onSaveAndSendToKitchen: _saveAndServeNext,
+        onSaveAndSendToKitchen: _saveAndClose,
       ),
     );
   }
 
-  /// "SAVE ORDER": keeps this customer's order open (unbilled) on the
-  /// server and starts an empty cart for the next customer. The saved
-  /// customer stays in "Running orders" until billed.
-  Future<void> _saveAndServeNext() async {
+  /// "SAVE ORDER": keeps this counter's order open (unbilled) on the server
+  /// and goes back to the counters, like sending a dine-in table's order.
+  Future<void> _saveAndClose() async {
     if (!mounted) return;
     if (!await saveCartWithFeedback(context) || !mounted) return;
-    final cart = context.read<CartProvider>();
-    cart.clearItems();
-    cart.configureContext(orderType: widget.orderType);
-    await _runningOrdersKey.currentState?.refresh();
+    context.read<CartProvider>().clear();
+    Navigator.of(context).pop();
   }
 
   void _openPayment() {
@@ -124,15 +176,15 @@ class _DirectOrderScreenState extends State<DirectOrderScreen> {
     });
   }
 
-  /// Back with items in the cart: offer to keep the order running instead
-  /// of silently losing it.
+  /// Back with unsaved items or edits: offer to keep them instead of
+  /// silently losing them.
   Future<void> _onBackPressed() async {
     final choice = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Leave this order?'),
         content: const Text(
-          'Save it to Running orders to bill it later, or discard it.',
+          'Save it on this counter to bill it later, or discard the changes.',
         ),
         actions: [
           TextButton(
@@ -145,7 +197,7 @@ class _DirectOrderScreenState extends State<DirectOrderScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, 'save'),
-            child: const Text('Save for later'),
+            child: const Text('Save'),
           ),
         ],
       ),
@@ -162,7 +214,7 @@ class _DirectOrderScreenState extends State<DirectOrderScreen> {
     final cart = context.watch<CartProvider>();
 
     return PopScope(
-      canPop: cart.isEmpty,
+      canPop: !_hasUnsavedChanges(cart),
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _onBackPressed();
       },
@@ -174,6 +226,7 @@ class _DirectOrderScreenState extends State<DirectOrderScreen> {
     final catalog = context.watch<CatalogProvider>();
     final cart = context.watch<CartProvider>();
     final products = _filteredProducts(catalog);
+    final counter = cart.hasSlot ? cart.tableCustomerLabel : widget.slot;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -182,13 +235,15 @@ class _DirectOrderScreenState extends State<DirectOrderScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(widget.isDelivery ? 'Delivery Order' : 'Takeaway Order'),
             Text(
-              cart.hasSlot
-                  ? '${cart.tableCustomerLabel} · ${cart.openOrderId == null ? 'new order' : 'running order'}'
-                  : widget.isDelivery
-                      ? 'Create a new delivery order'
-                      : 'Create a new counter order',
+              '${widget.isDelivery ? 'Delivery' : 'Takeaway'}${counter == null ? '' : ' · $counter'}',
+            ),
+            Text(
+              _loadingOrder
+                  ? 'Loading order...'
+                  : cart.openOrderId == null
+                      ? 'New order'
+                      : 'Running order',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.textSecondary,
                     fontWeight: FontWeight.w600,
@@ -210,10 +265,7 @@ class _DirectOrderScreenState extends State<DirectOrderScreen> {
       ),
       body: Column(
         children: [
-          RunningOrdersBar(
-            key: _runningOrdersKey,
-            orderType: widget.orderType,
-          ),
+          if (_loadingOrder) const LinearProgressIndicator(),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: TextField(

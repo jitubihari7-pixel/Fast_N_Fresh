@@ -20,6 +20,11 @@ const businessSettingsSchema = new mongoose.Schema(
     currencySymbol: { type: String, default: '₹' },
 
     primaryColor: { type: String, default: '#0E7C5A' },
+
+    // Takeaway (T1, T2...) and Delivery (D1, D2...) counters shown like
+    // dine-in tables. Managed through /api/counters, not updateSettings.
+    takeawayCounters: { type: [Number], default: [1, 2, 3, 4] },
+    deliveryCounters: { type: [Number], default: [1, 2, 3, 4] },
   },
   { timestamps: true }
 );

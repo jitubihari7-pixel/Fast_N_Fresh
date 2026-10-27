@@ -90,6 +90,75 @@ Future<bool> saveCartWithFeedback(BuildContext context) async {
   return false;
 }
 
+/// A counter slot tag read from an order label: "T1" or "T1 · Rahul".
+class SlotLabel {
+  static final RegExp _pattern = RegExp(r'^([TD])(\d+)(?: · (.*))?$');
+
+  /// "T" for takeaway, "D" for delivery.
+  final String prefix;
+  final int number;
+
+  /// Name typed after the tag, or empty.
+  final String name;
+
+  const SlotLabel(this.prefix, this.number, this.name);
+
+  String get tag => '$prefix$number';
+
+  static String prefixFor(String orderType) => orderType == 'delivery' ? 'D' : 'T';
+
+  /// The slot in [label], or null when it is not a slot of [orderType].
+  static SlotLabel? parse(String? label, String orderType) {
+    final match = _pattern.firstMatch(label?.trim() ?? '');
+    if (match == null || match.group(1) != prefixFor(orderType)) return null;
+    return SlotLabel(match.group(1)!, int.parse(match.group(2)!), match.group(3)?.trim() ?? '');
+  }
+}
+
+/// Re-reads open order [orderId] from the server (latest items from any
+/// device) and loads it into [cart] so it can be edited or billed.
+Future<Order> loadOpenOrderIntoCart(CartProvider cart, String orderId) async {
+  final latest = await OrderService().getById(orderId);
+  final slot = SlotLabel.parse(latest.tableCustomerLabel, latest.orderType);
+
+  cart.configureContext(
+    orderType: latest.orderType,
+    tableCustomerLabel: slot?.tag ?? latest.tableCustomerLabel,
+    openOrderId: latest.id,
+  );
+  if (slot != null) cart.setCustomerNameInput(slot.name);
+  cart.hydrateFromOpenOrder(
+    items: latest.items
+        .map(
+          (oi) => CartItem(
+            product: Product(
+              id: oi.productId,
+              name: oi.name,
+              categoryId: '',
+              sellingPrice: oi.price,
+              imageUrl: oi.imageUrl,
+            ),
+            quantity: oi.quantity,
+          ),
+        )
+        .toList(),
+    discount: latest.discount,
+    customer: latest.customerId == null
+        ? null
+        : Customer(
+            id: latest.customerId!,
+            name: latest.customerName ?? '',
+            phone: latest.customerPhone ?? '',
+          ),
+  );
+  if (latest.orderType == 'delivery') {
+    cart.deliveryAddress = latest.deliveryInfo?.address ?? '';
+    cart.deliveryPhone = latest.deliveryInfo?.phone ?? '';
+  }
+  cart.notes = latest.notes ?? '';
+  return latest;
+}
+
 /// Counter slots for Takeaway (T1, T2...) and Delivery (D1, D2...), like
 /// tables for dine-in. Each slot holds one running (unbilled) order, so
 /// several customers can be served before any of them is billed. Tapping a
@@ -110,14 +179,12 @@ class RunningOrdersBar extends StatefulWidget {
 class RunningOrdersBarState extends State<RunningOrdersBar> {
   static const int _defaultSlots = 4;
 
-  /// "T1" or "T1 · Rahul" -> prefix, slot number, typed name.
-  static final RegExp _labelPattern = RegExp(r'^([TD])(\d+)(?: · (.*))?$');
 
   List<Order> _orders = const [];
   int _slotCount = _defaultSlots;
   bool _switching = false;
 
-  String get _prefix => widget.orderType == 'delivery' ? 'D' : 'T';
+  String get _prefix => SlotLabel.prefixFor(widget.orderType);
   String get _prefsKey => 'counter_slots_${widget.orderType}';
 
   @override
@@ -162,11 +229,8 @@ class RunningOrdersBarState extends State<RunningOrdersBar> {
   }
 
   /// Slot number of [order], or null for an order saved without a slot.
-  int? _slotOf(Order order) {
-    final match = _labelPattern.firstMatch(order.tableCustomerLabel?.trim() ?? '');
-    if (match == null || match.group(1) != _prefix) return null;
-    return int.tryParse(match.group(2)!);
-  }
+  int? _slotOf(Order order) =>
+      SlotLabel.parse(order.tableCustomerLabel, widget.orderType)?.number;
 
   /// Busy slots -> their order. A second order in the same slot (e.g. from
   /// another device) is shown separately so it is never hidden.
@@ -288,49 +352,7 @@ class RunningOrdersBarState extends State<RunningOrdersBar> {
     try {
       if (!await _parkCurrentCart() || !mounted) return false;
 
-      // Re-read so the cart has the latest items from any device.
-      final latest = await OrderService().getById(orderId);
-      if (!mounted) return false;
-
-      final match = _labelPattern.firstMatch(latest.tableCustomerLabel?.trim() ?? '');
-      final inSlot = match != null && match.group(1) == _prefix;
-      cart.configureContext(
-        orderType: latest.orderType,
-        tableCustomerLabel: inSlot
-            ? '${match.group(1)}${match.group(2)}'
-            : latest.tableCustomerLabel,
-        openOrderId: latest.id,
-      );
-      if (inSlot) cart.setCustomerNameInput(match.group(3) ?? '');
-      cart.hydrateFromOpenOrder(
-        items: latest.items
-            .map(
-              (oi) => CartItem(
-                product: Product(
-                  id: oi.productId,
-                  name: oi.name,
-                  categoryId: '',
-                  sellingPrice: oi.price,
-                  imageUrl: oi.imageUrl,
-                ),
-                quantity: oi.quantity,
-              ),
-            )
-            .toList(),
-        discount: latest.discount,
-        customer: latest.customerId == null
-            ? null
-            : Customer(
-                id: latest.customerId!,
-                name: latest.customerName ?? '',
-                phone: latest.customerPhone ?? '',
-              ),
-      );
-      if (latest.orderType == 'delivery') {
-        cart.deliveryAddress = latest.deliveryInfo?.address ?? '';
-        cart.deliveryPhone = latest.deliveryInfo?.phone ?? '';
-      }
-      cart.notes = latest.notes ?? '';
+      await loadOpenOrderIntoCart(cart, orderId);
       return true;
     } on ApiException catch (e) {
       if (mounted) {
@@ -354,7 +376,7 @@ class RunningOrdersBarState extends State<RunningOrdersBar> {
     final customer = order.customerName?.trim() ?? '';
     String? name;
     if (slot != null) {
-      final typed = _labelPattern.firstMatch(label)?.group(3)?.trim() ?? '';
+      final typed = SlotLabel.parse(label, widget.orderType)?.name ?? '';
       name = typed.isNotEmpty ? typed : (customer.isNotEmpty ? customer : null);
     } else {
       name = label.isNotEmpty ? label : (customer.isNotEmpty ? customer : null);

@@ -19,6 +19,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/notification_service.dart';
 import '../../services/order_service.dart';
 
+import '../pos/counter_slots_screen.dart';
 import 'order_detail_screen.dart';
 
 class OrdersScreen extends StatefulWidget {
@@ -32,6 +33,8 @@ class _OrdersScreenState extends State<OrdersScreen>
     with WidgetsBindingObserver {
   final _service = OrderService();
   final _tableService = TableService();
+  final GlobalKey<CountersPanelState> _takeawayKey = GlobalKey<CountersPanelState>();
+  final GlobalKey<CountersPanelState> _deliveryKey = GlobalKey<CountersPanelState>();
 
   List<Order>? _orders;
   List<CafeTable> _tables = [];
@@ -274,6 +277,10 @@ class _OrdersScreenState extends State<OrdersScreen>
      */
 
     try {
+      // Takeaway/Delivery counters reload alongside the tables.
+      _takeawayKey.currentState?.refresh(silent: true);
+      _deliveryKey.currentState?.refresh(silent: true);
+
       // The table grid needs every unbilled order, however old, so a tab
       // opened before midnight (or past the first page) is never dropped.
       // Each unbilled status is fetched exactly (no date filter), which every
@@ -642,6 +649,10 @@ class _OrdersScreenState extends State<OrdersScreen>
               );
             },
           ),
+        const SizedBox(height: 18),
+        CountersPanel(key: _takeawayKey, orderType: 'takeaway'),
+        const SizedBox(height: 18),
+        CountersPanel(key: _deliveryKey, orderType: 'delivery'),
       ],
     );
   }

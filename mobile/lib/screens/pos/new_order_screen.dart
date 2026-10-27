@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/fresh_ui.dart';
 import '../tables/tables_screen.dart';
-import 'direct_order_screen.dart';
+import 'counter_slots_screen.dart';
 
 /// Entry point for starting any new order.
 ///
 /// Dine-In -> Table selection
-/// Takeaway -> POS
-/// Delivery -> POS
+/// Takeaway -> Counters (T1, T2...) -> menu
+/// Delivery -> Counters (D1, D2...) -> menu
 class NewOrderScreen extends StatelessWidget {
   const NewOrderScreen({super.key});
 
@@ -75,7 +75,7 @@ class NewOrderScreen extends StatelessWidget {
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => const DirectOrderScreen(orderType: 'takeaway'),
+                    builder: (_) => const CounterSlotsScreen(orderType: 'takeaway'),
                   ),
                 );
               },
@@ -94,7 +94,7 @@ class NewOrderScreen extends StatelessWidget {
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => const DirectOrderScreen(orderType: 'delivery'),
+                    builder: (_) => const CounterSlotsScreen(orderType: 'delivery'),
                   ),
                 );
               },

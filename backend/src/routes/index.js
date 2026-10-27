@@ -15,6 +15,7 @@ router.use('/reports', require('./reportRoutes'));
 router.use('/expenses', require('./expenseRoutes'));
 router.use('/settings', require('./settingsRoutes'));
 router.use('/tables', require('./tableRoutes'));
+router.use('/counters', require('./counterRoutes'));
 router.use('/uploads', require('./uploadRoutes'));
 router.use('/users', require('./userRoutes'));
 router.use('/attendance', require('./attendanceRoutes'));

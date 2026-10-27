@@ -8,7 +8,7 @@ import '../../services/table_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/connectivity_provider.dart';
 import '../../core/utils/pos_debug_log.dart';
-import '../pos/direct_order_screen.dart';
+import '../pos/counter_slots_screen.dart';
 import 'table_detail_screen.dart';
 import 'table_form_screen.dart';
 import 'qr_management_screen.dart';
@@ -27,6 +27,8 @@ class TablesScreen extends StatefulWidget {
 
 class _TablesScreenState extends State<TablesScreen> with WidgetsBindingObserver {
   final TableService _service = TableService();
+  final GlobalKey<CountersPanelState> _takeawayKey = GlobalKey<CountersPanelState>();
+  final GlobalKey<CountersPanelState> _deliveryKey = GlobalKey<CountersPanelState>();
   List<CafeTable> _tables = [];
   bool _loading = true;
   String? _error;
@@ -80,6 +82,8 @@ class _TablesScreenState extends State<TablesScreen> with WidgetsBindingObserver
 
   Future<void> _loadTables() async {
     if (mounted) setState(() { _loading = true; _error = null; });
+    _takeawayKey.currentState?.refresh();
+    _deliveryKey.currentState?.refresh();
     try {
       final tables = await _service.list();
       if (!mounted) return;
@@ -193,7 +197,7 @@ class _TablesScreenState extends State<TablesScreen> with WidgetsBindingObserver
       return _openDiningTables();
     }
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => DirectOrderScreen(orderType: type)),
+      MaterialPageRoute(builder: (_) => CounterSlotsScreen(orderType: type)),
     );
   }
 
@@ -366,6 +370,10 @@ class _TablesScreenState extends State<TablesScreen> with WidgetsBindingObserver
                       ),
                     ),
             ),
+            const SizedBox(height: 18),
+            CountersPanel(key: _takeawayKey, orderType: 'takeaway'),
+            const SizedBox(height: 18),
+            CountersPanel(key: _deliveryKey, orderType: 'delivery'),
           ],
         ),
         if (_loading) const Positioned(top: 0, left: 0, right: 0, child: LinearProgressIndicator()),
