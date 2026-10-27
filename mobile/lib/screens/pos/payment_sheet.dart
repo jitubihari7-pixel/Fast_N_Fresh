@@ -336,7 +336,7 @@ class _PaymentSheetState extends State<PaymentSheet> {
           discount: cart.discount,
           notes: cart.notes,
           customerId: cart.selectedCustomer?.id,
-          tableCustomerLabel: cart.customerNameInput,
+          tableCustomerLabel: cart.openOrderLabelUpdate,
         );
 
         order = await OrderService().checkoutOrder(

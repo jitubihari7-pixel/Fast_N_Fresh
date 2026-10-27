@@ -37,11 +37,30 @@ class CartProvider extends ChangeNotifier {
   /// When set it replaces the automatic "Customer N" label on the bill/KOT.
   String customerNameInput = '';
 
+  /// Takeaway/Delivery counter slots: T1, T2... and D1, D2...
+  static final RegExp slotPattern = RegExp(r'^[TD]\d+$');
+
+  /// True when this Takeaway/Delivery cart sits in a counter slot (T1/D1).
+  bool get hasSlot =>
+      orderType != 'dine_in' &&
+      tableCustomerLabel != null &&
+      slotPattern.hasMatch(tableCustomerLabel!);
+
   /// Label sent to the server: the typed name, else the automatic label.
+  /// A counter slot keeps its tag in front of the name ("T1 · Rahul") so
+  /// the order stays in its slot.
   String? get effectiveCustomerLabel {
     final typed = customerNameInput.trim();
+    if (hasSlot) {
+      return typed.isNotEmpty ? '$tableCustomerLabel · $typed' : tableCustomerLabel;
+    }
     return typed.isNotEmpty ? typed : tableCustomerLabel;
   }
+
+  /// Label to send when updating an already-open order. Outside a slot only
+  /// a typed name is sent, so an empty field never wipes the stored label.
+  String get openOrderLabelUpdate =>
+      hasSlot ? effectiveCustomerLabel! : customerNameInput;
 
   void setCustomerNameInput(String value) {
     customerNameInput = value;

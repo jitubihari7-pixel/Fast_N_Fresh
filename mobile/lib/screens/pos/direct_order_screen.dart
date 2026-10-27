@@ -20,7 +20,11 @@ import 'running_orders_bar.dart';
 class DirectOrderScreen extends StatefulWidget {
   final String orderType;
 
-  const DirectOrderScreen({super.key, required this.orderType})
+  /// Open (unbilled) order to load and bill straight away, e.g. a pending
+  /// bill tapped in Bill History.
+  final String? resumeOrderId;
+
+  const DirectOrderScreen({super.key, required this.orderType, this.resumeOrderId})
       : assert(orderType == 'takeaway' || orderType == 'delivery');
 
   bool get isDelivery => orderType == 'delivery';
@@ -39,13 +43,18 @@ class _DirectOrderScreenState extends State<DirectOrderScreen> {
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       // Explicit fresh-start reset for every direct order.
       final cart = context.read<CartProvider>();
       cart.clear();
       cart.configureContext(orderType: widget.orderType);
       context.read<CatalogProvider>().ensureLoaded();
+
+      final resumeId = widget.resumeOrderId;
+      if (resumeId == null) return;
+      final loaded = await _runningOrdersKey.currentState?.resumeById(resumeId) ?? false;
+      if (loaded && mounted) await _openCart();
     });
   }
 
@@ -175,9 +184,11 @@ class _DirectOrderScreenState extends State<DirectOrderScreen> {
           children: [
             Text(widget.isDelivery ? 'Delivery Order' : 'Takeaway Order'),
             Text(
-              widget.isDelivery
-                  ? 'Create a new delivery order'
-                  : 'Create a new counter order',
+              cart.hasSlot
+                  ? '${cart.tableCustomerLabel} · ${cart.openOrderId == null ? 'new order' : 'running order'}'
+                  : widget.isDelivery
+                      ? 'Create a new delivery order'
+                      : 'Create a new counter order',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.textSecondary,
                     fontWeight: FontWeight.w600,

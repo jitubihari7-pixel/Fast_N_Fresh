@@ -6,7 +6,7 @@ import '../../core/widgets/fresh_ui.dart';
 import '../../core/widgets/state_widgets.dart';
 import '../../models/order.dart';
 import '../../services/order_service.dart';
-import 'order_detail_screen.dart';
+import 'open_bill.dart';
 
 /// Manager-facing bill register. This is deliberately separate from the
 /// operational Orders/Table screen: Orders is for work-in-progress, while
@@ -413,8 +413,10 @@ class _BillHistoryScreenState extends State<BillHistoryScreen> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => OrderDetailScreen(orderId: order.id))),
+          onTap: () async {
+            await openBill(context, order);
+            if (mounted) _load();
+          },
           borderRadius: BorderRadius.circular(12),
           child: Ink(
             padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),

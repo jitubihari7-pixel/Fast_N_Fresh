@@ -12,6 +12,7 @@ import '../../services/order_service.dart';
 import '../../services/misc_services.dart';
 import '../../services/receipt_service.dart';
 import '../pos/bill_success_screen.dart';
+import 'open_bill.dart';
 import 'qr_checkout_sheet.dart';
 import '../../providers/connectivity_provider.dart';
 import '../settings/printer_settings_screen.dart';
@@ -271,6 +272,21 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> with WidgetsBindi
       padding: const EdgeInsets.all(13),
       children: [
         _paymentSummary(order),
+
+        if (!order.isQrOrder &&
+            order.paymentStatus != 'paid' &&
+            const ['open', 'preparing', 'ready'].contains(order.status))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: FilledButton.icon(
+              onPressed: () async {
+                await openBill(context, order);
+                if (mounted) _load();
+              },
+              icon: const Icon(Icons.receipt_long),
+              label: const Text('Bill & Pay'),
+            ),
+          ),
 
         if (order.isQrOrder &&
             order.status != 'completed' &&

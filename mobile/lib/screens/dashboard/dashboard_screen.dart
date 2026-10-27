@@ -18,7 +18,7 @@ import '../../providers/catalog_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/connectivity_provider.dart';
 import '../../providers/tab_refresh_bus.dart';
-import '../orders/order_detail_screen.dart';
+import '../orders/open_bill.dart';
 import '../../services/order_service.dart';
 
 import '../../core/widgets/theme_reveal.dart';
@@ -1420,13 +1420,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       );
 
       if (orders.isNotEmpty && mounted) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => OrderDetailScreen(
-              orderId: orders.first.id,
-            ),
-          ),
-        );
+        openBill(context, orders.first);
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Order not found.')),
